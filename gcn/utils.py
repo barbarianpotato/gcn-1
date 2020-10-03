@@ -117,35 +117,36 @@ def preprocess_adj(adj):
     return sparse_to_tuple(adj_normalized)
 
 
-def construct_feed_dict(features, support, labels, labels_mask, placeholders):
-    """Construct feed dictionary."""
-    feed_dict = dict()
-    feed_dict.update({placeholders['labels']: labels})
-    feed_dict.update({placeholders['labels_mask']: labels_mask})
-    feed_dict.update({placeholders['features']: features})
-    feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
-    feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
-    return feed_dict
 
 
-def chebyshev_polynomials(adj, k):
-    """Calculate Chebyshev polynomials up to order k. Return a list of sparse matrices (tuple representation)."""
-    print("Calculating Chebyshev polynomials up to order {}...".format(k))
 
-    adj_normalized = normalize_adj(adj)
-    laplacian = sp.eye(adj.shape[0]) - adj_normalized
-    largest_eigval, _ = eigsh(laplacian, 1, which='LM')
-    scaled_laplacian = (2. / largest_eigval[0]) * laplacian - sp.eye(adj.shape[0])
+learning_rate = 1e-4
+for t in range(500):
+    # Forward pass: compute predicted y by passing x to the model. Module objects
+    # override the __call__ operator so you can call them like functions. When
+    # doing so you pass a Tensor of input data to the Module and it produces
+    # a Tensor of output data.
+    y_pred = model(x)
 
-    t_k = list()
-    t_k.append(sp.eye(adj.shape[0]))
-    t_k.append(scaled_laplacian)
+    # Compute and print loss. We pass Tensors containing the predicted and true
+    # values of y, and the loss function returns a Tensor containing the
+    # loss.
+    loss = loss_fn(y_pred, y)
+    if t % 100 == 99:
+        print(t, loss.item())
 
-    def chebyshev_recurrence(t_k_minus_one, t_k_minus_two, scaled_lap):
-        s_lap = sp.csr_matrix(scaled_lap, copy=True)
-        return 2 * s_lap.dot(t_k_minus_one) - t_k_minus_two
+    # Zero the gradients before running the backward pass.
+    model.zero_grad()
 
-    for i in range(2, k+1):
-        t_k.append(chebyshev_recurrence(t_k[-1], t_k[-2], scaled_laplacian))
+    # Backward pass: compute gradient of the loss with respect to all the learnable
+    # parameters of the model. Internally, the parameters of each Module are stored
+    # in Tensors with requires_grad=True, so this call will compute gradients for
+    # all learnable parameters in the model.
+    loss.backward()
 
-    return sparse_to_tuple(t_k)
+    # Update the weights using gradient descent. Each parameter is a Tensor, so
+    # we can access its gradients like we did before.
+    with torch.no_grad():
+        for param in model.parameters():
+            param -= learning_rate * param.grad
+
